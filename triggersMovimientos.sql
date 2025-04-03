@@ -1,12 +1,13 @@
-SHOW TRIGGERS;
 USE inventario;
-DROP TRIGGER IF EXISTS agregarProducto;
-DROP TRIGGER IF EXISTS eliminarProducto;
+
+DROP TRIGGER IF EXISTS MovAgregarProducto;
+
+DROP TRIGGER IF EXISTS MovEliminarProducto;
 
 DELIMITER //
 
 -- Trigger para agregar productos al inventario (entradas)
-CREATE TRIGGER agregarProducto
+CREATE TRIGGER MovAgregarProducto
 AFTER INSERT ON Movimientos
 FOR EACH ROW
 BEGIN
@@ -30,7 +31,7 @@ END//
 -- Trigger para eliminar productos del inventario (salidas)
 DELIMITER //
 
-CREATE TRIGGER eliminarProducto
+CREATE TRIGGER MovEliminarProducto
 AFTER INSERT ON Movimientos
 FOR EACH ROW
 BEGIN
