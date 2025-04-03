@@ -8,8 +8,7 @@ CREATE TABLE Tiendas (
     nombre VARCHAR(100) NOT NULL,
     rubro VARCHAR(100) NOT NULL,
     fechaAlta DATE NOT NULL,
-    direccion VARCHAR(200) NOT NULL,
-    activa BOOLEAN DEFAULT TRUE
+    direccion VARCHAR(200) NOT NULL
 );
 
 -- Tabla de Empleados
@@ -20,6 +19,8 @@ CREATE TABLE Empleados (
     rol ENUM('empleado', 'administrativo') NOT NULL,
     telefono VARCHAR(20) NOT NULL,
     fechaContratacion DATE NOT NULL,
+    usuario VARCHAR(50) UNIQUE NOT NULL,
+    contrasena VARCHAR(50) NOT NULL,
     activo BOOLEAN DEFAULT TRUE,
     FOREIGN KEY (IDtienda) REFERENCES Tiendas(IDtienda)
 );
@@ -43,30 +44,41 @@ CREATE TABLE Categorias (
 -- Tabla de Productos
 CREATE TABLE Productos (
     IDproducto INT PRIMARY KEY AUTO_INCREMENT,
-    IDcategoria INT NOT NULL,
-    IDproveedor INT NOT NULL,
+    IDcategoria INT,
     codigoBarras VARCHAR(50) UNIQUE NOT NULL,
     nombre VARCHAR(100) NOT NULL,
     descripcion VARCHAR(200) NOT NULL DEFAULT 'N/A',
     precio DECIMAL(10,2) NOT NULL,
-    stock INT NOT NULL DEFAULT 0,
-    fechaIngreso DATE NOT NULL,
-    activo BOOLEAN DEFAULT TRUE,
-    FOREIGN KEY (IDcategoria) REFERENCES Categorias(IDcategoria),
-    FOREIGN KEY (IDproveedor) REFERENCES Proveedores(IDproveedor)
+    FOREIGN KEY (IDcategoria) REFERENCES Categorias(IDcategoria)
 );
 
--- Tabla de Movimientos
+-- Tabla de Inventario
+CREATE TABLE Inventario (
+    IDinventario INT PRIMARY KEY AUTO_INCREMENT,
+    IDtienda INT NOT NULL,
+    IDproducto INT NOT NULL,
+    stock INT NOT NULL DEFAULT 0,
+    fechaUltimaActualizacion DATETIME,
+    FOREIGN KEY (IDtienda) REFERENCES Tiendas(IDtienda),
+    FOREIGN KEY (IDproducto) REFERENCES Productos(IDproducto),
+    UNIQUE KEY (IDtienda, IDproducto)
+);
+
+-- Tabla de Movimientos del inventario
 CREATE TABLE Movimientos (
     IDmovimiento INT PRIMARY KEY AUTO_INCREMENT,
+    IDtienda INT NOT NULL,
     IDproducto INT NOT NULL,
     IDempleado INT NOT NULL,
-    tipo ENUM('entrada', 'salida') NOT NULL,
+    IDproveedor INT,
+    tipo ENUM('entrada', 'salida', 'ajuste') NOT NULL,
     cantidad INT NOT NULL,
-    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     motivo VARCHAR(200) NOT NULL,
+    FOREIGN KEY (IDtienda) REFERENCES Tiendas(IDtienda),
     FOREIGN KEY (IDproducto) REFERENCES Productos(IDproducto),
-    FOREIGN KEY (IDempleado) REFERENCES Empleados(IDempleado)
+    FOREIGN KEY (IDempleado) REFERENCES Empleados(IDempleado),
+    FOREIGN KEY (IDproveedor) REFERENCES Proveedores(IDproveedor)
 );
 
 -- Tabla de Historial de Movimientos (para deshacer/rehacer)
@@ -74,21 +86,14 @@ CREATE TABLE HistorialMovimientos (
     IDhistorial INT PRIMARY KEY AUTO_INCREMENT,
     IDmovimiento INT NOT NULL,
     IDempleado INT NOT NULL,
-    accion ENUM('creacion', 'modificacion', 'eliminacion') NOT NULL,
-    fechaCambio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    motivoCambio VARCHAR(200),
+    accion ENUM('creacion', 'modificacion', 'eliminacion', 'RESTAURACION') NOT NULL,
+    fechaCambio DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    motivoCambio VARCHAR(200) NOT NULL,
     datosAnteriores JSON,
     FOREIGN KEY (IDmovimiento) REFERENCES Movimientos(IDmovimiento),
     FOREIGN KEY (IDempleado) REFERENCES Empleados(IDempleado)
 );
 
--- Tabla de Reportes (puede ser vista o tabla física según necesidades)
-CREATE TABLE Reportes (
-    IDreporte INT PRIMARY KEY AUTO_INCREMENT,
-    IDempleado INT NOT NULL,
-    tipo ENUM('ventas', 'inventario') NOT NULL,
-    periodo ENUM('diario', 'semanal', 'mensual') NOT NULL,
-    fechaGeneracion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    datos JSON NOT NULL,
-    FOREIGN KEY (IDempleado) REFERENCES Empleados(IDempleado)
-);
+CREATE INDEX idxProductoCodigo ON Productos(codigoBarras);
+CREATE INDEX idxMovimientosFecha ON Movimientos(fecha);
+CREATE INDEX idxInventarioTienda_Producto ON Inventario(IDtienda, IDproducto);
