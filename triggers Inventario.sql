@@ -1,112 +1,68 @@
 SHOW TRIGGERS;
-
 USE inventario;
--- Añadir productos
+DROP TRIGGER IF EXISTS agregarProducto;
+DROP TRIGGER IF EXISTS eliminarProducto;
+
 DELIMITER //
 
-CREATE TRIGGER annadirProducto
+-- Trigger para agregar productos al inventario (entradas)
+CREATE TRIGGER agregarProducto
 AFTER INSERT ON Movimientos
 FOR EACH ROW
 BEGIN
-    DECLARE existe_inventario INT;
-    
-    -- Verificar si ya existe registro en el inventario para esta tienda-producto
-    SELECT COUNT(*) INTO existe_inventario 
-    FROM Inventario 
-    WHERE IDtienda = NEW.IDtienda AND IDproducto = NEW.IDproducto;
-    
-    -- Si no existe, crear el registro en inventario
-    IF existe_inventario = 0 THEN
-        INSERT INTO Inventario (IDtienda, IDproducto, stock, fechaUltimaActualizacion)
-        VALUES (NEW.IDtienda, NEW.IDproducto, 0, NOW());
-    END IF;
-    
-    -- Actualizar el inventario según el tipo de movimiento
+    -- Solo procesar si es una entrada
     IF NEW.tipo = 'entrada' THEN
-        UPDATE Inventario 
-        SET stock = stock + NEW.cantidad,
-            fechaUltimaActualizacion = NOW()
-        WHERE IDtienda = NEW.IDtienda AND IDproducto = NEW.IDproducto;
-    ELSEIF NEW.tipo = 'salida' THEN
-        UPDATE Inventario 
-        SET stock = stock - NEW.cantidad,
-            fechaUltimaActualizacion = NOW()
-        WHERE IDtienda = NEW.IDtienda AND IDproducto = NEW.IDproducto;
+        -- Verificar si el producto ya existe en el inventario de la tienda
+        IF EXISTS (SELECT 1 FROM Inventario WHERE IDtienda = NEW.IDtienda AND IDproducto = NEW.IDproducto) THEN
+            -- Actualizar el stock existente
+            UPDATE Inventario 
+            SET stock = stock + NEW.cantidad,
+                fechaUltimaActualizacion = NOW()
+            WHERE IDtienda = NEW.IDtienda AND IDproducto = NEW.IDproducto;
+        ELSE
+            -- Insertar nuevo registro en el inventario
+            INSERT INTO Inventario (IDtienda, IDproducto, stock, fechaUltimaActualizacion)
+            VALUES (NEW.IDtienda, NEW.IDproducto, NEW.cantidad, NOW());
+        END IF;
     END IF;
-    
-    -- Registrar en el historial
-    INSERT INTO HistorialMovimientos (IDmovimiento, IDempleado, accion, motivoCambio)
-    VALUES (NEW.IDmovimiento, NEW.IDempleado, 'creacion', NEW.motivo);
-END //
+END//
 
-DELIMITER ;
-
--- Eliminar productos 
+-- Trigger para eliminar productos del inventario (salidas)
 DELIMITER //
 
 CREATE TRIGGER eliminarProducto
-BEFORE DELETE ON Productos
+AFTER INSERT ON Movimientos
 FOR EACH ROW
 BEGIN
-    DECLARE tiene_movimientos INT;
+    -- Declarar variables al inicio del bloque
+    DECLARE current_stock INT;
     
-    -- Verificar si el producto tiene movimientos históricos
-    SELECT COUNT(*) INTO tiene_movimientos 
-    FROM Movimientos 
-    WHERE IDproducto = OLD.IDproducto;
-    
-    -- Preservar información histórica
-    IF tiene_movimientos > 0 THEN
-        -- Registrar eliminación en historial
-        INSERT INTO HistorialMovimientos (
-            IDempleado, 
-            accion, 
-            motivoCambio, 
-            datosAnteriores
-        )
-        SELECT 
-            IDempleado, 
-            'eliminacion', 
-            'Producto eliminado con movimientos históricos', 
-            JSON_OBJECT(
-                'producto', JSON_OBJECT(
-                    'id', OLD.IDproducto,
-                    'nombre', OLD.nombre,
-                    'codigo', OLD.codigoBarras
-                ),
-                'ultimo_movimiento', MAX(fecha),
-                'total_movimientos', COUNT(*)
-            )
-        FROM Movimientos 
-        WHERE IDproducto = OLD.IDproducto
-        GROUP BY IDempleado;
+    -- Solo procesar si es una salida
+    IF NEW.tipo = 'salida' THEN
+        -- Obtener el stock actual
+        SELECT stock INTO current_stock FROM Inventario 
+        WHERE IDtienda = NEW.IDtienda AND IDproducto = NEW.IDproducto;
         
-        -- Anonimizar movimientos (conservar el registro pero sin FK)
-        UPDATE Movimientos 
-        SET IDproducto = NULL,
-            motivo = CONCAT('(Producto eliminado) ', motivo)
-        WHERE IDproducto = OLD.IDproducto;
-    ELSE
-        -- Registrar eliminación simple para productos sin historial
-        INSERT INTO HistorialMovimientos (
-            IDempleado, 
-            accion, 
-            motivoCambio, 
-            datosAnteriores
-        )
-        VALUES (
-            1, -- Administrador
-            'eliminacion', 
-            'Producto sin historial eliminado', 
-            JSON_OBJECT(
-                'id', OLD.IDproducto,
-                'nombre', OLD.nombre
-            )
-        );
+        -- Verificar si se encontró el registro
+        IF current_stock IS NOT NULL THEN
+            -- Validar stock suficiente
+            IF current_stock >= NEW.cantidad THEN
+                -- Actualizar el stock
+                UPDATE Inventario 
+                SET stock = stock - NEW.cantidad,
+                    fechaUltimaActualizacion = NOW()
+                WHERE IDtienda = NEW.IDtienda AND IDproducto = NEW.IDproducto;
+            ELSE
+                -- No hay suficiente stock, generar error
+                SIGNAL SQLSTATE '45000' 
+                SET MESSAGE_TEXT = 'No hay suficiente stock para realizar esta salida';
+            END IF;
+        ELSE
+            -- El producto no existe en el inventario
+            SIGNAL SQLSTATE '45000' 
+            SET MESSAGE_TEXT = 'El producto no existe en el inventario de esta tienda';
+        END IF;
     END IF;
-    
-    -- Eliminar siempre el inventario (no es histórico)
-    DELETE FROM Inventario WHERE IDproducto = OLD.IDproducto;
-END //
+END//
 
 DELIMITER ;
