@@ -110,3 +110,20 @@ VALUES
 INSERT INTO Inventario (IDtienda, IDproducto, stock, fechaUltimaActualizacion)
 SELECT 1, IDproducto, 20, '2025-04-03 06:16:57'
 FROM Productos;
+
+-- Insertar movimientos (entradas y salidas)
+INSERT INTO Movimientos (IDtienda, IDproducto, IDempleado, tipo, cantidad, fecha, motivo)
+VALUES
+(1, 1, 1, 'entrada', 50, '2025-04-03', 'Reposición de stock'),
+(1, 2, 2, 'entrada', 30, '2025-04-03', 'Nuevo lote'),
+(1, 1, 3, 'salida', 10, '2025-04-03', 'Venta a cliente'),
+(1, 3, 4, 'salida', 5, '2025-04-03', 'Venta a cliente');
+
+-- Insertar historial de movimientos
+INSERT INTO HistorialMovimientos (IDmovimiento, IDempleado, accion, fechaCambio, motivoCambio, datosAnteriores)
+VALUES
+(1, 1, 'creacion', NOW(), 'Registro inicial de entrada', NULL),
+(2, 2, 'creacion', NOW(), 'Registro de lote nuevo', NULL),
+(3, 3, 'creacion', NOW(), 'Registro de venta', NULL),
+(4, 4, 'creacion', NOW(), 'Registro de venta', NULL);
+
