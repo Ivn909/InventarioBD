@@ -93,19 +93,3 @@ SELECT
     h.datosAnteriores
 FROM HistorialMovimientos h
 INNER JOIN Empleados e ON h.IDempleado = e.IDempleado;
-
--- 
-CREATE VIEW DetallesDevoluciones AS
-SELECT 
-    m.IDmovimiento,
-    t.nombre AS Tienda,
-    p.nombre AS Producto,
-    e.nombre AS Empleado,
-    m.cantidad,
-    m.fecha,
-    m.motivo
-FROM Movimientos m
-INNER JOIN Tiendas t ON m.IDtienda = t.IDtienda
-INNER JOIN Productos p ON m.IDproducto = p.IDproducto
-INNER JOIN Empleados e ON m.IDempleado = e.IDempleado
-WHERE LOWER(m.motivo) LIKE '%devoluci%';
